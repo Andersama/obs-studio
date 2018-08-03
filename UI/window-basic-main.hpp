@@ -125,7 +125,7 @@ private:
 	obs_frontend_callbacks *api = nullptr;
 
 	std::vector<VolControl*> volumes;
-
+	std::vector<VolControl*> master_volumes;
 	std::vector<OBSSignal> signalHandlers;
 
 	bool loaded = false;
@@ -261,8 +261,10 @@ private:
 	void GetAudioSourceFilters();
 	void GetAudioSourceProperties();
 	void VolControlContextMenu();
+	void MasterVolControlContextMenu();
 	void ToggleVolControlLayout();
-	void ToggleMixerLayout(bool vertical);
+	void ToggleMasterVolControlLayout();
+	void ToggleMixerLayout(bool vertical, bool isMaster);
 
 	void RefreshSceneCollections();
 	void ChangeSceneCollection();
@@ -463,6 +465,8 @@ private slots:
 
 	void on_vMixerScrollArea_customContextMenuRequested();
 	void on_hMixerScrollArea_customContextMenuRequested();
+	void on_vMasterMixerScrollArea_customContextMenuRequested();
+	void on_hMasterMixerScrollArea_customContextMenuRequested();
 
 	void on_actionCopySource_triggered();
 	void on_actionPasteRef_triggered();
@@ -725,6 +729,7 @@ private slots:
 	void DeferredLoad(const QString &file, int requeueCount);
 
 	void StackedMixerAreaContextMenuRequested();
+	void StackedMasterMixerAreaContextMenuRequested();
 
 public slots:
 	void on_actionResetTransform_triggered();

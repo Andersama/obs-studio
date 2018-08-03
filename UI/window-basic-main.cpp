@@ -262,6 +262,7 @@ OBSBasic::OBSBasic(QWidget *parent)
 
 	assignDockToggle(ui->scenesDock, ui->toggleScenes);
 	assignDockToggle(ui->sourcesDock, ui->toggleSources);
+	assignDockToggle(ui->mastermixerDock, ui->toggleMasterMixer);
 	assignDockToggle(ui->mixerDock, ui->toggleMixer);
 	assignDockToggle(ui->transitionsDock, ui->toggleTransitions);
 	assignDockToggle(ui->controlsDock, ui->toggleControls);
@@ -269,6 +270,7 @@ OBSBasic::OBSBasic(QWidget *parent)
 	//hide all docking panes
 	ui->toggleScenes->setChecked(false);
 	ui->toggleSources->setChecked(false);
+	ui->toggleMasterMixer->setChecked(false);
 	ui->toggleMixer->setChecked(false);
 	ui->toggleTransitions->setChecked(false);
 	ui->toggleControls->setChecked(false);
@@ -1605,8 +1607,9 @@ void OBSBasic::OBSInit()
 	}
 
 	ToggleMixerLayout(config_get_bool(App()->GlobalConfig(), "BasicWindow",
-			"VerticalVolControl"));
-
+			"VerticalVolControl"), false);
+	ToggleMixerLayout(config_get_bool(App()->GlobalConfig(), "BasicWindow",
+		"VerticalMasterVolControl"), true);
 	if (config_get_bool(basicConfig, "General", "OpenStatsOnStartup"))
 		on_stats_triggered();
 
@@ -2543,8 +2546,81 @@ void OBSBasic::MixerRenameSource()
 	}
 }
 
-void OBSBasic::VolControlContextMenu()
+void OBSBasic::MasterVolControlContextMenu()
 {
+	VolControl *vol = reinterpret_cast<VolControl*>(sender());
+
+	/* ------------------- */
+
+	QAction hideAction(QTStr("Hide"), this);
+	QAction unhideAllAction(QTStr("UnhideAll"), this);
+//	QAction mixerRenameAction(QTStr("Rename"), this);
+
+//	QAction filtersAction(QTStr("Filters"), this);
+//	QAction propertiesAction(QTStr("Properties"), this);
+	QAction advPropAction(QTStr("Basic.MainMenu.Edit.AdvAudio"), this);
+
+	QAction toggleControlLayoutAction(QTStr("VerticalLayoutMaster"), this);
+	toggleControlLayoutAction.setCheckable(true);
+	toggleControlLayoutAction.setChecked(config_get_bool(GetGlobalConfig(),
+			"BasicWindow", "VerticalMasterVolControl"));
+
+	/* ------------------- */
+
+	connect(&hideAction, &QAction::triggered,
+			this, &OBSBasic::HideAudioControl,
+			Qt::DirectConnection);
+	connect(&unhideAllAction, &QAction::triggered,
+			this, &OBSBasic::UnhideAllAudioControls,
+			Qt::DirectConnection);
+	//connect(&mixerRenameAction, &QAction::triggered,
+	//		this, &OBSBasic::MixerRenameSource,
+	//		Qt::DirectConnection);
+
+	//connect(&filtersAction, &QAction::triggered,
+	//		this, &OBSBasic::GetAudioSourceFilters,
+	//		Qt::DirectConnection);
+	//connect(&propertiesAction, &QAction::triggered,
+	//		this, &OBSBasic::GetAudioSourceProperties,
+	//		Qt::DirectConnection);
+	connect(&advPropAction, &QAction::triggered,
+			this, &OBSBasic::on_actionAdvAudioProperties_triggered,
+			Qt::DirectConnection);
+
+	/* ------------------- */
+
+	connect(&toggleControlLayoutAction, &QAction::changed, this,
+			&OBSBasic::ToggleMasterVolControlLayout,
+			Qt::DirectConnection);
+
+	/* ------------------- */
+
+	hideAction.setProperty("volControl",
+			QVariant::fromValue<VolControl*>(vol));
+	//mixerRenameAction.setProperty("volControl",
+	//		QVariant::fromValue<VolControl*>(vol));
+
+	//filtersAction.setProperty("volControl",
+	//		QVariant::fromValue<VolControl*>(vol));
+	//propertiesAction.setProperty("volControl",
+	//		QVariant::fromValue<VolControl*>(vol));
+
+	/* ------------------- */
+
+	QMenu popup(this);
+	popup.addAction(&unhideAllAction);
+	popup.addAction(&hideAction);
+	//popup.addAction(&mixerRenameAction);
+	popup.addSeparator();
+	popup.addAction(&toggleControlLayoutAction);
+	popup.addSeparator();
+	//popup.addAction(&filtersAction);
+	//popup.addAction(&propertiesAction);
+	popup.addAction(&advPropAction);
+	popup.exec(QCursor::pos());
+}
+
+void OBSBasic::VolControlContextMenu() {
 	VolControl *vol = reinterpret_cast<VolControl*>(sender());
 
 	/* ------------------- */
@@ -2560,47 +2636,47 @@ void OBSBasic::VolControlContextMenu()
 	QAction toggleControlLayoutAction(QTStr("VerticalLayout"), this);
 	toggleControlLayoutAction.setCheckable(true);
 	toggleControlLayoutAction.setChecked(config_get_bool(GetGlobalConfig(),
-			"BasicWindow", "VerticalVolControl"));
+		"BasicWindow", "VerticalVolControl"));
 
 	/* ------------------- */
 
 	connect(&hideAction, &QAction::triggered,
-			this, &OBSBasic::HideAudioControl,
-			Qt::DirectConnection);
+		this, &OBSBasic::HideAudioControl,
+		Qt::DirectConnection);
 	connect(&unhideAllAction, &QAction::triggered,
-			this, &OBSBasic::UnhideAllAudioControls,
-			Qt::DirectConnection);
+		this, &OBSBasic::UnhideAllAudioControls,
+		Qt::DirectConnection);
 	connect(&mixerRenameAction, &QAction::triggered,
-			this, &OBSBasic::MixerRenameSource,
-			Qt::DirectConnection);
+		this, &OBSBasic::MixerRenameSource,
+		Qt::DirectConnection);
 
 	connect(&filtersAction, &QAction::triggered,
-			this, &OBSBasic::GetAudioSourceFilters,
-			Qt::DirectConnection);
+		this, &OBSBasic::GetAudioSourceFilters,
+		Qt::DirectConnection);
 	connect(&propertiesAction, &QAction::triggered,
-			this, &OBSBasic::GetAudioSourceProperties,
-			Qt::DirectConnection);
+		this, &OBSBasic::GetAudioSourceProperties,
+		Qt::DirectConnection);
 	connect(&advPropAction, &QAction::triggered,
-			this, &OBSBasic::on_actionAdvAudioProperties_triggered,
-			Qt::DirectConnection);
+		this, &OBSBasic::on_actionAdvAudioProperties_triggered,
+		Qt::DirectConnection);
 
 	/* ------------------- */
 
 	connect(&toggleControlLayoutAction, &QAction::changed, this,
-			&OBSBasic::ToggleVolControlLayout,
-			Qt::DirectConnection);
+		&OBSBasic::ToggleVolControlLayout,
+		Qt::DirectConnection);
 
 	/* ------------------- */
 
 	hideAction.setProperty("volControl",
-			QVariant::fromValue<VolControl*>(vol));
+		QVariant::fromValue<VolControl*>(vol));
 	mixerRenameAction.setProperty("volControl",
-			QVariant::fromValue<VolControl*>(vol));
+		QVariant::fromValue<VolControl*>(vol));
 
 	filtersAction.setProperty("volControl",
-			QVariant::fromValue<VolControl*>(vol));
+		QVariant::fromValue<VolControl*>(vol));
 	propertiesAction.setProperty("volControl",
-			QVariant::fromValue<VolControl*>(vol));
+		QVariant::fromValue<VolControl*>(vol));
 
 	/* ------------------- */
 
@@ -2625,6 +2701,14 @@ void OBSBasic::on_hMixerScrollArea_customContextMenuRequested()
 void OBSBasic::on_vMixerScrollArea_customContextMenuRequested()
 {
 	StackedMixerAreaContextMenuRequested();
+}
+
+void OBSBasic::on_hMasterMixerScrollArea_customContextMenuRequested() {
+	StackedMasterMixerAreaContextMenuRequested();
+}
+
+void OBSBasic::on_vMasterMixerScrollArea_customContextMenuRequested() {
+	StackedMasterMixerAreaContextMenuRequested();
 }
 
 void OBSBasic::StackedMixerAreaContextMenuRequested()
@@ -2665,12 +2749,55 @@ void OBSBasic::StackedMixerAreaContextMenuRequested()
 	popup.exec(QCursor::pos());
 }
 
-void OBSBasic::ToggleMixerLayout(bool vertical)
+void OBSBasic::StackedMasterMixerAreaContextMenuRequested() {
+	QAction unhideAllAction(QTStr("UnhideAll"), this);
+
+	QAction advPropAction(QTStr("Basic.MainMenu.Edit.AdvAudio"), this);
+
+	QAction toggleControlLayoutAction(QTStr("VerticalLayoutMaster"), this);
+	toggleControlLayoutAction.setCheckable(true);
+	toggleControlLayoutAction.setChecked(config_get_bool(GetGlobalConfig(),
+		"BasicWindow", "VerticalMasterVolControl"));
+
+	/* ------------------- */
+
+	connect(&unhideAllAction, &QAction::triggered,
+		this, &OBSBasic::UnhideAllAudioControls,
+		Qt::DirectConnection);
+
+	connect(&advPropAction, &QAction::triggered,
+		this, &OBSBasic::on_actionAdvAudioProperties_triggered,
+		Qt::DirectConnection);
+
+	/* ------------------- */
+
+	connect(&toggleControlLayoutAction, &QAction::changed, this,
+		&OBSBasic::ToggleMasterVolControlLayout,
+		Qt::DirectConnection);
+
+	/* ------------------- */
+
+	QMenu popup(this);
+	popup.addAction(&unhideAllAction);
+	popup.addSeparator();
+	popup.addAction(&toggleControlLayoutAction);
+	popup.addSeparator();
+	popup.addAction(&advPropAction);
+	popup.exec(QCursor::pos());
+}
+
+void OBSBasic::ToggleMixerLayout(bool vertical, bool isMaster)
 {
-	if (vertical) {
+	if (vertical && isMaster) {
+		ui->stackedMasterMixerArea->setMinimumSize(180, 220);
+		ui->stackedMasterMixerArea->setCurrentIndex(1);
+	} else if (!vertical && isMaster) {
+		ui->stackedMasterMixerArea->setMinimumSize(220, 0);
+		ui->stackedMasterMixerArea->setCurrentIndex(0);
+	} else if (vertical && !isMaster) {
 		ui->stackedMixerArea->setMinimumSize(180, 220);
 		ui->stackedMixerArea->setCurrentIndex(1);
-	} else {
+	} else if (!vertical && !isMaster) {
 		ui->stackedMixerArea->setMinimumSize(220, 0);
 		ui->stackedMixerArea->setCurrentIndex(0);
 	}
@@ -2682,7 +2809,7 @@ void OBSBasic::ToggleVolControlLayout()
 			"VerticalVolControl");
 	config_set_bool(GetGlobalConfig(), "BasicWindow", "VerticalVolControl",
 			vertical);
-	ToggleMixerLayout(vertical);
+	ToggleMixerLayout(vertical, false);
 
 	// We need to store it so we can delete current and then add
 	// at the right order
@@ -2694,6 +2821,25 @@ void OBSBasic::ToggleVolControlLayout()
 
 	for (const auto &source : sources)
 		ActivateAudioSource(source);
+}
+
+void OBSBasic::ToggleMasterVolControlLayout() {
+	bool vertical = !config_get_bool(GetGlobalConfig(), "BasicWindow",
+		"VerticalMasterVolControl");
+	config_set_bool(GetGlobalConfig(), "BasicWindow", "VerticalMasterVolControl",
+		vertical);
+	ToggleMixerLayout(vertical, true);
+
+	// We need to store it so we can delete current and then add
+	// at the right order
+	//vector<OBSSource> sources;
+	//for (size_t i = 0; i != volumes.size(); i++)
+	//	sources.emplace_back(volumes[i]->GetSource());
+
+	//ClearVolumeControls();
+
+	//for (const auto &source : sources)
+	//	ActivateAudioSource(source);
 }
 
 void OBSBasic::ActivateAudioSource(OBSSource source)
@@ -2742,8 +2888,75 @@ void OBSBasic::ActivateAudioSource(OBSSource source)
 		else
 			ui->hVolControlLayout->addWidget(volume);
 	}
+	/* need to find entry for tracks 
+	for (auto volume : master_volumes) {
+		if (vertical)
+			ui->vMasterVolControlLayout->addWidget(volume);
+		else
+			ui->hMasterVolControlLayout->addWidget(volume);
+	}
+	*/
 }
 
+void OBSBasic::InitAudioMaster() {
+
+	bool vertical = config_get_bool(GetGlobalConfig(), "BasicWindow",
+		"VerticalMasterVolControl");
+	float *tracks[6];
+	VolControl *vol[6];
+	for (int i = 0; i < 5; i++) {
+		tracks[i] = new float;
+		vol[i] = new VolControl(tracks[i], true, vertical);
+	}
+
+	// to do : adapt the rest to the tracks
+
+	double meterDecayRate = config_get_double(basicConfig, "Audio",
+		"MeterDecayRate");
+	vol->SetMeterDecayRate(meterDecayRate);
+
+	uint32_t peakMeterTypeIdx = config_get_uint(basicConfig, "Audio",
+		"PeakMeterType");
+
+	enum obs_peak_meter_type peakMeterType;
+	switch (peakMeterTypeIdx) {
+	case 0:
+		peakMeterType = SAMPLE_PEAK_METER;
+		break;
+	case 1:
+		peakMeterType = TRUE_PEAK_METER;
+		break;
+	default:
+		peakMeterType = SAMPLE_PEAK_METER;
+		break;
+	}
+
+	vol->setPeakMeterType(peakMeterType);
+
+	vol->setContextMenuPolicy(Qt::CustomContextMenu);
+
+	connect(vol, &QWidget::customContextMenuRequested,
+		this, &OBSBasic::VolControlContextMenu);
+	connect(vol, &VolControl::ConfigClicked,
+		this, &OBSBasic::VolControlContextMenu);
+
+	InsertQObjectByName(volumes, vol);
+
+	for (auto volume : volumes) {
+		if (vertical)
+			ui->vVolControlLayout->addWidget(volume);
+		else
+			ui->hVolControlLayout->addWidget(volume);
+	}
+	/* need to find entry for tracks
+	for (auto volume : master_volumes) {
+	if (vertical)
+	ui->vMasterVolControlLayout->addWidget(volume);
+	else
+	ui->hMasterVolControlLayout->addWidget(volume);
+	}
+	*/
+}
 void OBSBasic::DeactivateAudioSource(OBSSource source)
 {
 	for (size_t i = 0; i < volumes.size(); i++) {
@@ -5906,6 +6119,7 @@ void OBSBasic::on_resetUI_triggered()
 		ui->scenesDock,
 		ui->sourcesDock,
 		ui->mixerDock,
+		ui->mastermixerDock,
 		ui->transitionsDock,
 		ui->controlsDock
 	};
@@ -5921,6 +6135,7 @@ void OBSBasic::on_resetUI_triggered()
 	ui->scenesDock->setVisible(true);
 	ui->sourcesDock->setVisible(true);
 	ui->mixerDock->setVisible(true);
+	ui->mastermixerDock->setVisible(true);
 	ui->transitionsDock->setVisible(true);
 	ui->controlsDock->setVisible(true);
 
@@ -5938,6 +6153,7 @@ void OBSBasic::on_lockUI_toggled(bool lock)
 	ui->scenesDock->setFeatures(features);
 	ui->sourcesDock->setFeatures(features);
 	ui->mixerDock->setFeatures(features);
+	ui->mastermixerDock->setFeatures(features);
 	ui->transitionsDock->setFeatures(features);
 	ui->controlsDock->setFeatures(features);
 }
