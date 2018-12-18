@@ -596,7 +596,7 @@ static bool validateRequirements(obs_data_t *settings)
 		if (!obs_data_item_has_user_value(item))
 			continue;
 
-		if (strcmpi(name, "requirements") == 0) {
+		if (strcmp(name, "requirements") == 0) {
 			switch (item_type) {
 			case OBS_DATA_STRING:
 			case OBS_DATA_OBJECT:
