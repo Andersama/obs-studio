@@ -186,6 +186,7 @@ file(GLOB QT_ICU_BIN_FILES
 	"${Qt5Core_DIR}/../../../bin/icu*.dll")
 
 set(ALL_BASE_BIN_FILES
+	${CAFFEINE_BIN_FILES}
 	${FFMPEG_BIN_FILES}
 	${X264_BIN_FILES}
 	${CURL_BIN_FILES}
