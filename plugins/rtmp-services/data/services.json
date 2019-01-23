@@ -447,6 +447,23 @@
             }
         },
         {
+            "name": "Caffeine",
+            "common": true,
+            "servers": [
+			    {
+                    "name": "Primary",
+                    "url": "http://www.caffeine.tv"
+                }
+			],
+            "recommended": {
+                "keyint": 2,
+                "output": "caffeine_output",
+                "profile": "main",
+                "max video bitrate": 2000,
+                "max audio bitrate": 160
+            }
+        },
+        {
             "name": "Mobcrush",
             "servers": [
                 {

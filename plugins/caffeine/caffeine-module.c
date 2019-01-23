@@ -9,12 +9,10 @@ MODULE_EXPORT char const * obs_module_description(void)
 }
 
 extern struct obs_output_info caffeine_output_info;
-extern struct obs_service_info caffeine_service_info;
 
 bool obs_module_load(void)
 {
 	obs_register_output(&caffeine_output_info);
-	obs_register_service(&caffeine_service_info);
 
 	return true;
 }

@@ -30,9 +30,7 @@ set(caffeine_SOURCES
 	caffeine-foreground-process.c
 	caffeine-foreground-process.h
 	caffeine-module.c
-	caffeine-output.c
-	caffeine-service.c
-	caffeine-service.h)
+	caffeine-output.c)
 
 add_library(caffeine MODULE
 	${caffeine_SOURCES}
