@@ -249,12 +249,12 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 	trace();
 
 	obs_output_t *output = context->output;
-
+	/*
 	if (!caffeine_is_supported_version()) {
 		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
 		return false;
 	}
-
+	*/
 	bool result = false;
 
 	obs_service_t *service = obs_output_get_service(output);
