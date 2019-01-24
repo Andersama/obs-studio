@@ -1,3 +1,4 @@
+
 #include <obs-module.h>
 
 #include <libavcodec/avcodec.h>
@@ -48,9 +49,8 @@ static inline void assign_bstr(char *str, char *nstr)
 
 static void caffeine_free_broadcast_info(struct caffeine_broadcast_info **info)
 {
-	if (!info || !*info) {
+	if (!info || !*info)
 		return;
-	}
 
 	bfree((*info)->stream_url);
 	bfree((*info)->feed_id);
@@ -169,7 +169,9 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 	trace();
 	UNUSED_PARAMETER(settings);
 
-	struct caffeine_output *context = bzalloc(sizeof(struct caffeine_output));
+	struct caffeine_output *context = bzalloc(
+		sizeof(struct caffeine_output));
+
 	context->output = output;
 
 	pthread_mutex_init(&context->stream_mutex, NULL);
@@ -249,6 +251,7 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 	trace();
 
 	obs_output_t *output = context->output;
+	
 	/*
 	if (!caffeine_is_supported_version()) {
 		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
@@ -417,9 +420,10 @@ static char const *caffeine_offer_generated(void *data, char const *sdp_offer)
 
 	// Make request to add our feed and get a new broadcast id
 
-	assign_bstr(request->stage->title, title);
+	caffeine_set_string(&request->stage->title, title);
 	request->stage->upsert_broadcast = true;
-	assign_bstr(request->stage->broadcast_id, NULL);
+	caffeine_set_string(&request->stage->broadcast_id, NULL);
+
 	request->stage->live = false;
 
 	struct caffeine_feed feed = {
@@ -755,8 +759,9 @@ static void *broadcast_thread(void *data)
 			++failures;
 			if (failures > max_failures) {
 				log_error("Heartbeat failed %d times; ending stream.",
-						  failures);
-				caffeine_stream_failed(data, CAFF_ERROR_DISCONNECTED);
+						failures);
+				caffeine_stream_failed(data,
+						CAFF_ERROR_DISCONNECTED);
 				break;
 			}
 		}
@@ -885,7 +890,7 @@ static void *longpoll_thread(void *data)
 		pthread_mutex_lock(&context->stream_mutex);
 		if (context->broadcast_info) {
 			caffeine_free_stage_request(
-				&context->broadcast_info->next_request);
+					&context->broadcast_info->next_request);
 			context->broadcast_info->next_request = request;
 			request = NULL;
 		}
@@ -967,7 +972,7 @@ static void create_screenshot(struct caffeine_output *context, uint32_t width,
 	frame->height = height;
 
 	ret = av_image_alloc(frame->data, frame->linesize, codec_context->width, 
-		codec_context->height, codec_context->pix_fmt, 32);
+			codec_context->height, codec_context->pix_fmt, 32);
 
 	if (ret < 0) {
 		log_warn("Couldn't allocate image");
@@ -988,8 +993,8 @@ static void create_screenshot(struct caffeine_output *context, uint32_t width,
 	}
 
 	// Transform RGBA to RGB24
-	ret = sws_scale(sws_context, image_data, image_data_linesize,
-		0, frame->height, frame->data, frame->linesize);
+	ret = sws_scale(sws_context, image_data, image_data_linesize, 0,
+			frame->height, frame->data, frame->linesize);
 
 	if (ret < 0) {
 		log_warn("Couldn't translate image format");
