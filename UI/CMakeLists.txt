@@ -39,6 +39,13 @@ else()
 	set(MIXER_ENABLED TRUE)
 endif()
 
+if(NOT DEFINED CAFFEINE_INCLUDE_DIR OR "${CAFFEINE_INCLUDE_DIR}" STREQUAL "" OR
+   NOT DEFINED CAFFEINE_LIB         OR "${CAFFEINE_LIB}"         STREQUAL "")
+	set(CAFFEINE_ENABLED FALSE)
+else()
+	set(CAFFEINE_ENABLED TRUE)
+endif()
+
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/ui-config.h.in"
 	"${CMAKE_CURRENT_BINARY_DIR}/ui-config.h")
@@ -158,6 +165,27 @@ if(BROWSER_AVAILABLE_INTERNAL)
 		list(APPEND obs_PLATFORM_HEADERS
 			auth-mixer.hpp
 			)
+	endif()
+
+	find_package(Caffeine)
+	if(WIN32 AND Caffeine_FOUND)
+		include_directories(
+			#${CAFFEINE_INCLUDE_DIR}
+			${CAFFEINE_INCLUDE_DIRS}
+			)
+		#include_directories(SYSTEM "libcaffeine")
+		include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/plugins/caffeine")
+		list(APPEND obs_PLATFORM_SOURCES
+			auth-caffeine.cpp
+			)
+		list(APPEND obs_PLATFORM_HEADERS
+			auth-caffeine.hpp
+			)
+		set(obs_PLATFORM_LIBRARIES
+			${obs_PLATFORM_LIBRARIES}
+			${CAFFEINE_LIBRARIES}
+			libcaffeine)
+		obs_install_additional(libcaffeine)
 	endif()
 endif()
 
