@@ -168,24 +168,40 @@ if(BROWSER_AVAILABLE_INTERNAL)
 	endif()
 
 	find_package(Caffeine)
-	if(WIN32 AND Caffeine_FOUND)
+	if(Caffeine_FOUND)
+		find_package(Threads REQUIRED)
+		add_definitions(${THREADS_DEFINITIONS})
+		find_package(FFmpeg REQUIRED
+			COMPONENTS avfilter avutil avformat avcodec avdevice swscale swresample)
+
+		if(WIN32)
+			set(caffeine_PLATFORM_DEPS
+				shlwapi.lib
+				w32-pthreads)
+		endif()
+
 		include_directories(
-			#${CAFFEINE_INCLUDE_DIR}
 			${CAFFEINE_INCLUDE_DIRS}
 			)
-		#include_directories(SYSTEM "libcaffeine")
-		include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/plugins/caffeine")
-		list(APPEND obs_PLATFORM_SOURCES
+		set(caffeine_HEADERS
+			${CAFFEINE_HEADERS}
+			auth-caffeine.hpp
+			)
+		set(caffeine_SOURCES
+			${CAFFEINE_SOURCES}
 			auth-caffeine.cpp
 			)
+		list(APPEND obs_PLATFORM_SOURCES
+			${caffeine_SOURCES}
+			)
 		list(APPEND obs_PLATFORM_HEADERS
-			auth-caffeine.hpp
+			${caffeine_HEADERS}
 			)
 		set(obs_PLATFORM_LIBRARIES
 			${obs_PLATFORM_LIBRARIES}
+			${caffeine_PLATFORM_DEPS}
 			${CAFFEINE_LIBRARIES}
-			libcaffeine)
-		obs_install_additional(libcaffeine)
+			${THREADS_LIBRARIES})
 	endif()
 endif()
 

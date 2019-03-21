@@ -87,6 +87,16 @@ mark_as_advanced(CAFFEINE_INCLUDE_DIR CAFFEINE_LIB)
 if (CAFFEINE_FOUND)
 	set (CAFFEINE_INCLUDE_DIRS ${CAFFEINE_INCLUDE_DIR})
 	set (CAFFEINE_LIBRARIES ${CAFFEINE_LIB})
+	set (CAFFEINE_HEADERS
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-api.h
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-config.h
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-log.h
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-foreground-process.h
+		)
+	set (CAFFEINE_SOURCES
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-api.c
+		${CAFFEINE_INCLUDE_DIRS}/caffeine-foreground-process.c
+		)
 	if(WIN32)
 		string(REGEX REPLACE ".lib$" "" CAFFEINE_SHARED ${CAFFEINE_LIB})
 	elseif(APPLE)
