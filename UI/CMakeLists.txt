@@ -39,11 +39,11 @@ else()
 	set(MIXER_ENABLED TRUE)
 endif()
 
-if(NOT DEFINED CAFFEINE_INCLUDE_DIR OR "${CAFFEINE_INCLUDE_DIR}" STREQUAL "" OR
-   NOT DEFINED CAFFEINE_LIB         OR "${CAFFEINE_LIB}"         STREQUAL "")
-	set(CAFFEINE_ENABLED FALSE)
-else()
+find_package(Caffeine)
+if(Caffeine_FOUND)
 	set(CAFFEINE_ENABLED TRUE)
+else()
+	set(CAFFEINE_ENABLED FALSE)
 endif()
 
 configure_file(
@@ -167,7 +167,6 @@ if(BROWSER_AVAILABLE_INTERNAL)
 			)
 	endif()
 
-	find_package(Caffeine)
 	if(Caffeine_FOUND)
 		find_package(Threads REQUIRED)
 		add_definitions(${THREADS_DEFINITIONS})

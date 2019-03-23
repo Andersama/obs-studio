@@ -47,6 +47,7 @@ static Auth::Def caffeineDef = {
 CaffeineAuth::CaffeineAuth(const Def &d)
 	: OAuthStreamKey(d)
 {
+	UNUSED_PARAMETER(d);
 }
 
 bool CaffeineAuth::GetChannelInfo(bool allow_retry)
@@ -287,5 +288,5 @@ void RegisterCaffeineAuth()
 			caffeineDef,
 			CreateCaffeineAuth,
 			CaffeineAuth::Login,
-			DeleteCookies);
+			DeleteCookies);	
 }
