@@ -3,6 +3,7 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QPushButton>
 #include <QLineEdit>
 #include <QLabel>
 
@@ -76,7 +77,7 @@ try {
 	}
 	
 	name = user_info->username;
-	id = user_info->caid; //"caffeine";
+	id   = user_info->caid;
 	
 	caffeine_free_user_info(&user_info);
 	caffeine_free_credentials(&credentials);
@@ -118,13 +119,8 @@ static inline std::string get_config_str(
 
 bool CaffeineAuth::LoadInternal()
 {
-	/*
-	if (!cef)
-		return false;
-		*/
 	OBSBasic *main = OBSBasic::Get();
 	name = get_config_str(main, service(), "Name");
-	username = name;
 	id = get_config_str(main, service(), "Id");
 	firstLoad = false;
 	return OAuthStreamKey::LoadInternal();
@@ -143,6 +139,7 @@ void CaffeineAuth::LoadUI()
 		return;
 	if (!GetChannelInfo())
 		return;
+	/* TODO: Chat */
 	uiLoaded = true;
 	return;
 }
@@ -159,19 +156,116 @@ void CaffeineAuth::SetToken(std::string token)
 }
 
 std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
-{	
+{
+	std::string tmp = "";
+	std::string *token = &tmp;
+
 	QDialog dialog(parent);
+	QDialog *prompt = &dialog;
 	QFormLayout form(&dialog);
-	form.addRow(new QLabel("Caffeine Login"));
+	dialog.setWindowTitle("Caffeine Login");
 	
-	QDialogButtonBox buttonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-			Qt::Horizontal, &dialog);
-			
+	QDialogButtonBox buttonBox(Qt::Horizontal, &dialog);
+	QPushButton *login  = new QPushButton(QTStr("Login"));
+	QPushButton *logout = new QPushButton(QTStr("Logout"));
+	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
+
 	QLineEdit *u = new QLineEdit(&dialog);
-	form.addRow(new QLabel(QTStr("Username")), u);
+	u->setPlaceholderText(QTStr("Username"));
+	form.addWidget(u);
 	QLineEdit *p = new QLineEdit(&dialog);
-	form.addRow(new QLabel(QTStr("Password")), p);
-			
+	p->setPlaceholderText(QTStr("Password"));
+	p->setEchoMode(QLineEdit::Password);
+	form.addWidget(p);
+
+	buttonBox.addButton(login,  QDialogButtonBox::ButtonRole::ActionRole);
+	buttonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
+	
+	auto tryLogin = [=](bool checked) {
+		std::string username = u->text().toStdString();
+		std::string password = p->text().toStdString();
+		std::string otp = "";
+
+		QDialog otpdialog(parent);
+		QFormLayout otpform(&otpdialog);
+		otpdialog.setWindowTitle("Caffeine Login (One Time Password)");
+		//otpform.addRow(new QLabel("Caffeine One Time Password"));
+
+		QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
+		onetimepassword->setEchoMode(QLineEdit::Password);
+		onetimepassword->setPlaceholderText(QTStr("Password"));
+		//otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
+		otpform.addWidget(onetimepassword);
+
+		QPushButton *login = new QPushButton(QTStr("Login"));
+		QPushButton *logout = new QPushButton(QTStr("Logout"));
+		QPushButton *cancel = new QPushButton(QTStr("Cancel"));
+
+		QDialogButtonBox otpButtonBox(Qt::Horizontal, &otpdialog);
+
+		otpButtonBox.addButton(login, QDialogButtonBox::ButtonRole::AcceptRole);
+		otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
+
+		QObject::connect(&otpButtonBox, SIGNAL(accepted()), &otpdialog, SLOT(accept()));
+		QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
+		otpform.addRow(&otpButtonBox);
+
+		int trycount = 0;
+retrylogin:
+		trycount++;
+		struct caffeine_auth_response *response =
+			caffeine_signin(username.c_str(), password.c_str(), otp.c_str());
+		if (!response) {
+			return;
+		} else if (response->next) {
+			if (strcmp(response->next, "mfa_otp_required") == 0) {
+				caffeine_free_auth_response(&response);
+				if (otpdialog.exec() == QDialog::Rejected)
+					return;
+				otp = onetimepassword->text().toStdString();
+				if (trycount < 3)
+					goto retrylogin;
+				return;
+			}
+			std::string message = "";
+			std::string error = "";
+			if (strcmp(response->next, "legal_acceptance_required") == 0) {
+				message = "Unauthorized";
+				error = "Legal acceptance required\n";
+			}
+			if (strcmp(response->next, "email_verification") == 0) {
+				message = "Unauthorized";
+				error += "Email needs verification\n";
+			}
+			caffeine_free_auth_response(&response);
+
+			QString title = QTStr("Auth.ChannelFailure.Title");
+			QString text = QTStr("Auth.ChannelFailure.Text")
+				.arg("Caffeine", message.c_str(), error.c_str());
+
+			QMessageBox::warning(OBSBasic::Get(), title, text);
+
+			blog(LOG_WARNING, "%s: %s: %s",
+				__FUNCTION__,
+				message.c_str(),
+				error.c_str());
+
+			if (trycount < 3)
+				goto retrylogin;
+			return;
+		} else if (!response->credentials) {
+			caffeine_free_auth_response(&response);
+			if (trycount < 3)
+				goto retrylogin;
+			return;
+		} else {
+			*token = caffeine_refresh_token(response->credentials);
+			caffeine_free_auth_response(&response);
+			prompt->accept();
+		}
+	};
+
+	QObject::connect(login, &QPushButton::clicked, tryLogin);
 	QObject::connect(&buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
 	QObject::connect(&buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
 	form.addRow(&buttonBox);
@@ -179,94 +273,13 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
 
-	std::string username;
-	std::string password;
-	std::string otp;
-	username = u->text().toStdString();
-	password = p->text().toStdString();
-	
-	QDialog otpdialog(parent);
-	QFormLayout otpform(&otpdialog);
-	otpform.addRow(new QLabel("Caffeine One Time Password"));
-	
-	QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
-	otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
-	
-	QDialogButtonBox otpButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-		Qt::Horizontal, &otpdialog);
-		
-	QObject::connect(&otpButtonBox, SIGNAL(accepted()), &otpdialog, SLOT(accept()));
-	QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
-	otpform.addRow(&otpButtonBox);
-	
-	int trycount = 0;
-retrylogin:	
-	trycount++;
-	struct caffeine_auth_response *response =
-		caffeine_signin(username.c_str(), password.c_str(), otp.c_str());
-	if (!response) {
-		return nullptr;
-	} else if (response->next) {
-		if (strcmp(response->next, "mfa_otp_required") == 0) {
-			caffeine_free_auth_response(&response);
-			if (otpdialog.exec() == QDialog::Rejected)
-				return nullptr;
-			otp = onetimepassword->text().toStdString();
-			if(trycount > 3)
-				goto retrylogin;
-			else
-				return nullptr;
-		}
-		if (strcmp(response->next, "legal_acceptance_required") == 0) {
-			//show_message(props, obs_module_text("TosAcceptanceRequired"));
-		}
-		if (strcmp(response->next, "email_verification") == 0) {
-			//show_message(props, obs_module_text("EmailVerificationRequired"));
-		}
-		caffeine_free_auth_response(&response);
-		return nullptr;
-	} else if (!response->credentials) {
-		caffeine_free_auth_response(&response);
-		if(trycount > 3)
-			goto retrylogin;
-		else
-			return nullptr;
-	} else {
-		std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
-		if (auth)
-			auth->SetToken(caffeine_refresh_token(response->credentials));
-
-		caffeine_free_auth_response(&response);
+	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
+	if (auth) {
+		auth->SetToken(token->c_str());
 		if (auth->GetChannelInfo(false))
 			return auth;
 	}
-	
 	return nullptr;
-	/*
-	OAuthLogin login(parent, CAFFEINE_AUTH_URL, false);
-	cef->add_popup_whitelist_url("about:blank", &login);
-
-	if (login.exec() == QDialog::Rejected) {
-		return nullptr;
-	}
-
-	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
-
-	std::string client_id = CAFFEINE_CLIENTID;
-	deobfuscate_str(&client_id[0], CAFFEINE_HASH);
-
-	if (!auth->GetToken(CAFFEINE_TOKEN_URL, client_id, CAFFEINE_SCOPE_VERSION,
-				QT_TO_UTF8(login.GetCode()))) {
-		return nullptr;
-	}
-
-	std::string error;
-	if (auth->GetChannelInfo(false)) {
-		return auth;
-	}
-
-	return nullptr;
-	*/
 }
 
 static std::shared_ptr<Auth> CreateCaffeineAuth()
@@ -276,10 +289,7 @@ static std::shared_ptr<Auth> CreateCaffeineAuth()
 
 static void DeleteCookies()
 {
-	/*
-	if (panel_cookies)
-		panel_cookies->DeleteCookies("caffeine.tv", std::string());
-		*/
+
 }
 
 void RegisterCaffeineAuth()

@@ -15,11 +15,6 @@ class CaffeineAuth : public OAuthStreamKey {
 
 	std::string name;
 	std::string id;
-	
-	std::string username;
-	std::string password;
-	std::string otp;
-	//std::string refresh_token;
 
 	virtual bool RetryLogin() override;
 
