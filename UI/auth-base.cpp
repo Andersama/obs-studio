@@ -39,6 +39,15 @@ Auth::Type Auth::AuthType(const std::string &service)
 	return Type::None;
 }
 
+bool Auth::HiddenAuth(const std::string &service)
+{
+	for (auto &a : authDefs) {
+		if (service.find(a.def.service) != std::string::npos) {
+			return a.def.key_hidden;
+		}
+	}
+}
+
 void Auth::Load()
 {
 	OBSBasic *main = OBSBasic::Get();

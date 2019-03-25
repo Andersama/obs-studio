@@ -254,6 +254,11 @@ static inline bool is_auth_service(const std::string &service)
 	return Auth::AuthType(service) != Auth::Type::None;
 }
 
+static inline bool is_auth_hidden(const std::string &service)
+{
+	return Auth::HiddenAuth(service);
+}
+
 void OBSBasicSettings::on_service_currentIndexChanged(int)
 {
 	bool showMore =
@@ -268,17 +273,38 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 	ui->bandwidthTestEnable->setVisible(false);
 
 #ifdef BROWSER_AVAILABLE
+	auth.reset();
+
+	if (!!main->auth &&
+		service.find(main->auth->service()) != std::string::npos) {
+		auth = main->auth;
+		OnAuthConnected();
+	}
+#endif
+
+#ifdef BROWSER_AVAILABLE
 	if (cef) {
 		if (lastService != service.c_str()) {
 			QString key = ui->key->text();
 			bool can_auth = is_auth_service(service);
+			bool hidden_auth = false;
+			if (can_auth)
+				hidden_auth = is_auth_hidden(service);
 			int page = can_auth && (!loading || key.isEmpty())
 				? (int)Section::Connect
 				: (int)Section::StreamKey;
-
+			if (hidden_auth)
+				page = (int)Section::Connect;
+			ui->useStreamKey->setVisible(!hidden_auth);
 			ui->streamStackWidget->setCurrentIndex(page);
-			ui->streamKeyWidget->setVisible(true);
-			ui->streamKeyLabel->setVisible(true);
+			ui->streamKeyWidget->setVisible(!hidden_auth);
+			ui->streamKeyLabel->setVisible(!hidden_auth);
+			QString connectString = QTStr("Basic.AutoConfig.StreamPage.ConnectAccount").arg(
+				hidden_auth ? QTStr("Required") : QTStr("Optional")
+			);
+			ui->connectAccount->setText(connectString);
+			//ui->connectAccount->setVisible(can_auth);
+			ui->connectAccount2->setText(connectString);
 			ui->connectAccount2->setVisible(can_auth);
 		}
 	} else {
@@ -305,16 +331,6 @@ void OBSBasicSettings::on_service_currentIndexChanged(int)
 	} else {
 		ui->serverStackedWidget->setCurrentIndex(0);
 	}
-
-#ifdef BROWSER_AVAILABLE
-	auth.reset();
-
-	if (!!main->auth &&
-	    service.find(main->auth->service()) != std::string::npos) {
-		auth = main->auth;
-		OnAuthConnected();
-	}
-#endif
 }
 
 void OBSBasicSettings::UpdateServerList()
@@ -474,12 +490,14 @@ void OBSBasicSettings::on_disconnectAccount_clicked()
 
 	std::string service = QT_TO_UTF8(ui->service->currentText());
 
+	bool hidden_auth = false;
 #ifdef BROWSER_AVAILABLE
 	OAuth::DeleteCookies(service);
+	hidden_auth = is_auth_hidden(service);
 #endif
 
-	ui->streamKeyWidget->setVisible(true);
-	ui->streamKeyLabel->setVisible(true);
+	ui->streamKeyWidget->setVisible(!hidden_auth);
+	ui->streamKeyLabel->setVisible(!hidden_auth);
 	ui->connectAccount2->setVisible(true);
 	ui->disconnectAccount->setVisible(false);
 	ui->bandwidthTestEnable->setVisible(false);

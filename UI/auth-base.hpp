@@ -31,6 +31,7 @@ public:
 	struct Def {
 		std::string service;
 		Type type;
+		bool key_hidden = false;
 	};
 
 	typedef std::function<std::shared_ptr<Auth> ()> create_cb;
@@ -47,6 +48,7 @@ public:
 
 	static std::shared_ptr<Auth> Create(const std::string &service);
 	static Type AuthType(const std::string &service);
+	static bool HiddenAuth(const std::string &service);
 	static void Load();
 	static void Save();
 
