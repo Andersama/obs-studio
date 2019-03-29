@@ -166,9 +166,23 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	dialog.setWindowTitle("Caffeine Login");
 	
 	QDialogButtonBox buttonBox(Qt::Horizontal, &dialog);
+	QLabel *logo = new QLabel();
+	QPixmap image("CaffeineLogo.png");
+	logo->setPixmap(image);
+
+	form.addWidget(logo);
+
 	QPushButton *login  = new QPushButton(QTStr("Login"));
 	QPushButton *logout = new QPushButton(QTStr("Logout"));
 	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
+	QLabel      *trouble = new QLabel(
+		"<a href=\"https://www.caffeine.tv/forgot-password\">"
+		+ QTStr("Trouble.Signing.In") + "</a>"
+	);
+	QLabel      *signup = new QLabel(
+		"<a href=\"https://www.caffeine.tv/sign-up\">"
+		+ QTStr("Sign.Up") + "</a>"
+	);
 
 	QLineEdit *u = new QLineEdit(&dialog);
 	u->setPlaceholderText(QTStr("Username"));
@@ -177,6 +191,8 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	p->setPlaceholderText(QTStr("Password"));
 	p->setEchoMode(QLineEdit::Password);
 	form.addWidget(p);
+	form.addWidget(trouble);
+	form.addWidget(signup);
 
 	buttonBox.addButton(login,  QDialogButtonBox::ButtonRole::ActionRole);
 	buttonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
