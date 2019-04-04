@@ -25,6 +25,7 @@
     <file>images/unlocked_mask_2x.png</file>
     <file>images/collapse.png</file>
     <file>images/expand.png</file>
+    <file>images/CaffeineLogo.png</file>
   </qresource>
   <qresource prefix="/settings">
     <file>images/settings/output.svg</file>

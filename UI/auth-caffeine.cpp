@@ -163,39 +163,78 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	QDialog dialog(parent);
 	QDialog *prompt = &dialog;
 	QFormLayout form(&dialog);
+	form.setContentsMargins(151, 101, 151, 101);
+	form.setSpacing(10);
+	dialog.setObjectName("caffeinelogin");
+	dialog.setProperty("themeID", "caffeineLogin");
+	QString caffeineStyle = "\
+		* [themeID=\"caffeineLogo\"] {padding-left: 50px; padding-right: 50px; padding-bottom: 20px; background-color:white;}\
+		* [themeID=\"caffeineWelcome\"] {font-weight: normal; font-family: SegoeUI, sans-serif; letter-spacing: 0.1px; line-height: 53px; font-size: 40px; background-color:white; color:#000;}\
+		* [themeID=\"caffeineIntro\"] {padding-bottom: 10px; font-weight: normal; font-family: SegoeUI, sans-serif; letter-spacing: 0px; line-height: 43px; font-size: 32px; background-color:white; color:#222;}\
+		QLineEdit {padding-left: 29px; padding-right: 29px; padding-bottom: 20px; padding-top: 20px; font-weight: normal; font-family: SegoeUI, sans-serif; border-radius: 5px; border: 1px solid #8b8b8b;}\
+		QPushButton {font-weight: normal; font-family: SegoeUI, sans-serif; font-size: 36px; background-color: #009fe0; color:#FFF; border-radius: 36px; padding-left: 90px; padding-right: 90px; border: 1px solid #009fe0}\
+		QPushButton::hover {background-color:#007cad;}\
+		* [themeID=\"caffeineLogin\"] {font-weight: normal; font-family: SegoeUI, sans-serif; letter-spacing: 0.1px; line-height: 24px; font-size: 18px; background-color:white; color:#000;}\
+		* [themeID=\"caffeineTrouble\"] {padding-left: 29px; padding-right: 29px; font-weight: normal; font-family: SegoeUI, sans-serif; letter-spacing: 0.1px; line-height: 24px; font-size: 18px; background-color:white; color:#000;}";
+
+	QString style = dialog.styleSheet();
+	style += caffeineStyle;
+
+	dialog.setStyleSheet(style);
 	dialog.setWindowTitle("Caffeine Login");
 	
 	QDialogButtonBox buttonBox(Qt::Horizontal, &dialog);
 	QLabel *logo = new QLabel();
-	QPixmap image("CaffeineLogo.png");
-	logo->setPixmap(image);
+	QPixmap image(":/res/images/CaffeineLogo.png");
+	logo->setPixmap(image.scaled(logo->size(), Qt::KeepAspectRatio,
+			Qt::SmoothTransformation));
+	logo->setAlignment(Qt::AlignHCenter);
+	logo->setProperty("themeID", "caffeineLogo");
 
-	form.addWidget(logo);
+	form.addRow(logo);
+	QLabel *welcome = new QLabel("Welcome to Caffeine");
+	welcome->setAlignment(Qt::AlignHCenter);
+	welcome->setProperty("themeID", "caffeineWelcome");
+	QLabel *intro = new QLabel("Sign in");
+	intro->setAlignment(Qt::AlignHCenter);
+	intro->setProperty("themeID", "caffeineIntro");
+	form.addRow(welcome);
+	form.addRow(intro);
 
-	QPushButton *login  = new QPushButton(QTStr("Login"));
-	QPushButton *logout = new QPushButton(QTStr("Logout"));
-	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
+	QPushButton *signin  = new QPushButton(QTStr("Sign In"));
+	signin->setMinimumHeight(72);
+	QPushButton *logout = new QPushButton(QTStr("Sign Out"));
 	QLabel      *trouble = new QLabel(
 		"<a href=\"https://www.caffeine.tv/forgot-password\">"
-		+ QTStr("Trouble.Signing.In") + "</a>"
+		+ QTStr("Trouble Signing In?") + "</a>"
 	);
+	trouble->setProperty("themeID", "caffeineTrouble");
 	QLabel      *signup = new QLabel(
-		"<a href=\"https://www.caffeine.tv/sign-up\">"
-		+ QTStr("Sign.Up") + "</a>"
+		"New to Caffeine? <a href=\"https://www.caffeine.tv/sign-up\">"
+		+ QTStr("Sign Up") + "</a>"
 	);
+	buttonBox.setCenterButtons(true);
+	buttonBox.addButton(signin,  QDialogButtonBox::ButtonRole::ActionRole);
+
+	signup->setAlignment(Qt::AlignHCenter);
+	signup->setProperty("themeID", "caffeineLogin");
 
 	QLineEdit *u = new QLineEdit(&dialog);
 	u->setPlaceholderText(QTStr("Username"));
-	form.addWidget(u);
+	u->setProperty("themeID", "caffeineLogin");
+	u->setMinimumHeight(56);
+	form.addRow(u);
+
 	QLineEdit *p = new QLineEdit(&dialog);
 	p->setPlaceholderText(QTStr("Password"));
 	p->setEchoMode(QLineEdit::Password);
-	form.addWidget(p);
-	form.addWidget(trouble);
-	form.addWidget(signup);
+	p->setProperty("themeID", "caffeineLogin");
+	p->setMinimumHeight(56);
 
-	buttonBox.addButton(login,  QDialogButtonBox::ButtonRole::ActionRole);
-	buttonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
+	form.addRow(p);
+	form.addRow(trouble);
+	form.addRow(&buttonBox);
+	form.addRow(signup);
 	
 	auto tryLogin = [=](bool checked) {
 		std::string username = u->text().toStdString();
@@ -203,6 +242,8 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 		std::string otp = "";
 
 		QDialog otpdialog(parent);
+		QString style = otpdialog.styleSheet();
+		style += caffeineStyle;
 		QFormLayout otpform(&otpdialog);
 		otpdialog.setWindowTitle("Caffeine Login (One Time Password)");
 		//otpform.addRow(new QLabel("Caffeine One Time Password"));
@@ -226,6 +267,20 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 		QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
 		otpform.addRow(&otpButtonBox);
 
+		std::string message = "";
+		std::string error = "";
+
+		if (username.empty() || password.empty()) {
+			message = "Missing Password or Username";
+			error = "A username and password are required!";
+			QString title = QTStr("Auth.ChannelFailure.Title");
+			QString text = QTStr("Auth.ChannelFailure.Text")
+				.arg("Caffeine", message.c_str(), error.c_str());
+
+			QMessageBox::warning(OBSBasic::Get(), title, text);
+			return;
+		}
+
 		int trycount = 0;
 retrylogin:
 		trycount++;
@@ -243,8 +298,7 @@ retrylogin:
 					goto retrylogin;
 				return;
 			}
-			std::string message = "";
-			std::string error = "";
+
 			if (strcmp(response->next, "legal_acceptance_required") == 0) {
 				message = "Unauthorized";
 				error = "Legal acceptance required\n";
@@ -281,10 +335,9 @@ retrylogin:
 		}
 	};
 
-	QObject::connect(login, &QPushButton::clicked, tryLogin);
+	QObject::connect(signin, &QPushButton::clicked, tryLogin);
 	QObject::connect(&buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
 	QObject::connect(&buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
-	form.addRow(&buttonBox);
 	
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
