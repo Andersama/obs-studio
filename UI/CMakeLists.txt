@@ -39,8 +39,8 @@ else()
 	set(MIXER_ENABLED TRUE)
 endif()
 
-find_package(Caffeine)
-if(Caffeine_FOUND)
+find_package(Libcaffeine)
+if(LIBCAFFEINE_FOUND)
 	set(CAFFEINE_ENABLED TRUE)
 else()
 	set(CAFFEINE_ENABLED FALSE)
@@ -167,7 +167,7 @@ if(BROWSER_AVAILABLE_INTERNAL)
 			)
 	endif()
 
-	if(Caffeine_FOUND)
+	if(CAFFEINE_ENABLED)
 		find_package(Threads REQUIRED)
 		add_definitions(${THREADS_DEFINITIONS})
 		find_package(FFmpeg REQUIRED
@@ -180,14 +180,12 @@ if(BROWSER_AVAILABLE_INTERNAL)
 		endif()
 
 		include_directories(
-			${CAFFEINE_INCLUDE_DIRS}
+			${LIBCAFFEINE_INCLUDE_DIR}
 			)
 		set(caffeine_HEADERS
-			${CAFFEINE_HEADERS}
 			auth-caffeine.hpp
 			)
 		set(caffeine_SOURCES
-			${CAFFEINE_SOURCES}
 			auth-caffeine.cpp
 			)
 		list(APPEND obs_PLATFORM_SOURCES
@@ -199,7 +197,7 @@ if(BROWSER_AVAILABLE_INTERNAL)
 		set(obs_PLATFORM_LIBRARIES
 			${obs_PLATFORM_LIBRARIES}
 			${caffeine_PLATFORM_DEPS}
-			${CAFFEINE_LIBRARIES}
+			${LIBCAFFEINE_LIBRARY}
 			${THREADS_LIBRARIES})
 	endif()
 endif()

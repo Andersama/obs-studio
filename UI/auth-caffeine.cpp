@@ -45,42 +45,39 @@ static Auth::Def caffeineDef = {
 
 /* ------------------------------------------------------------------------- */
 
+static void caffeine_log(caff_LogLevel logLevel, char const * message)
+{
+	blog(LOG_INFO, "[libcaffeine] %s", message);
+}
+
 CaffeineAuth::CaffeineAuth(const Def &d)
 	: OAuthStreamKey(d)
 {
 	UNUSED_PARAMETER(d);
+	instance = caff_initialize(caffeine_log, caff_LogLevelInfo);
 }
 
-bool CaffeineAuth::GetChannelInfo(bool allow_retry)
+CaffeineAuth::~CaffeineAuth()
+{
+	caff_deinitialize(&instance);
+}
+
+bool CaffeineAuth::GetChannelInfo()
 try {
 	if (refresh_token.empty()) {
-		if (allow_retry && RetryLogin())
-			return GetChannelInfo(false);
 		throw ErrorInfo("Auth Failure", "Could not get refresh token");
 	}
 	key_ = refresh_token;
-	struct caffeine_credentials *credentials =
-		caffeine_refresh_auth(refresh_token.c_str());
 
-	if (!credentials) {
-		if (allow_retry && RetryLogin())
-			return GetChannelInfo(false);
-		throw ErrorInfo("Auth Failure", "Could not get credentials");
+	if (!caff_isSignedIn(instance)) {
+		auto result = caff_refreshAuth(instance, refresh_token.c_str());
+		if (result != caff_AuthResultSuccess) {
+			throw ErrorInfo("Auth Failure", "Signin failed");
+		}
 	}
 	
-	struct caffeine_user_info *user_info = caffeine_getuser(credentials);
-	if (!user_info) {
-		caffeine_free_credentials(&credentials);
-		if (allow_retry && RetryLogin())
-			return GetChannelInfo(false);
-		throw ErrorInfo("Auth Failure", "Could not get user info");
-	}
+	username = caff_getUsername(instance);
 	
-	name = user_info->username;
-	id   = user_info->caid;
-	
-	caffeine_free_user_info(&user_info);
-	caffeine_free_credentials(&credentials);
 	return true;
 } catch (ErrorInfo info) {
 	QString title = QTStr("Auth.ChannelFailure.Title");
@@ -99,8 +96,7 @@ try {
 void CaffeineAuth::SaveInternal()
 {
 	OBSBasic *main = OBSBasic::Get();
-	config_set_string(main->Config(), service(), "Name", name.c_str());
-	config_set_string(main->Config(), service(), "Id", id.c_str());
+	config_set_string(main->Config(), service(), "Username", username.c_str());
 	if (uiLoaded) {
 		config_set_string(main->Config(), service(), "DockState",
 				main->saveState().toBase64().constData());
@@ -120,8 +116,7 @@ static inline std::string get_config_str(
 bool CaffeineAuth::LoadInternal()
 {
 	OBSBasic *main = OBSBasic::Get();
-	name = get_config_str(main, service(), "Name");
-	id = get_config_str(main, service(), "Id");
+	username = get_config_str(main, service(), "Username");
 	firstLoad = false;
 	return OAuthStreamKey::LoadInternal();
 }
@@ -150,16 +145,108 @@ bool CaffeineAuth::RetryLogin()
 	return ptr != nullptr;
 }
 
-void CaffeineAuth::SetToken(std::string token)
+void CaffeineAuth::TryAuth(
+	bool checked,
+	QLineEdit * u,
+	QLineEdit * p,
+	QWidget * parent,
+	QString const & caffeineStyle,
+	QDialog * prompt)
 {
-	refresh_token = token;
+	std::string username = u->text().toStdString();
+	std::string password = p->text().toStdString();
+	std::string otp = "";
+
+	QDialog otpdialog(parent);
+	QString style = otpdialog.styleSheet();
+	style += caffeineStyle;
+	QFormLayout otpform(&otpdialog);
+	otpdialog.setWindowTitle("Caffeine Login (One Time Password)");
+	//otpform.addRow(new QLabel("Caffeine One Time Password"));
+
+	QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
+	onetimepassword->setEchoMode(QLineEdit::Password);
+	onetimepassword->setPlaceholderText(QTStr("Password"));
+	//otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
+	otpform.addWidget(onetimepassword);
+
+	QPushButton *login = new QPushButton(QTStr("Login"));
+	QPushButton *logout = new QPushButton(QTStr("Logout"));
+	QPushButton *cancel = new QPushButton(QTStr("Cancel"));
+
+	QDialogButtonBox otpButtonBox(Qt::Horizontal, &otpdialog);
+
+	otpButtonBox.addButton(login, QDialogButtonBox::ButtonRole::AcceptRole);
+	otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
+
+	QObject::connect(&otpButtonBox, SIGNAL(accepted()), &otpdialog, SLOT(accept()));
+	QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
+	otpform.addRow(&otpButtonBox);
+
+	std::string message = "";
+	std::string error = "";
+
+	if (username.empty() || password.empty()) {
+		message = "Missing Password or Username";
+		error = "A username and password are required!";
+		QString title = QTStr("Auth.ChannelFailure.Title");
+		QString text = QTStr("Auth.ChannelFailure.Text")
+			.arg("Caffeine", message.c_str(), error.c_str());
+
+		QMessageBox::warning(OBSBasic::Get(), title, text);
+		return;
+	}
+
+	auto response = caff_signIn(instance, username.c_str(), password.c_str(), otp.c_str());
+	switch (response) {
+	case caff_AuthResultSuccess:
+		refresh_token = caff_getRefreshToken(instance);
+		prompt->accept();
+		return;
+	case caff_AuthResultInfoIncorrect:
+		message = "Unauthorized";
+		error = "Incorrect login info";
+		break;
+	case caff_AuthResultOldVersion:
+		message = "Unauthorized";
+		error = "Out-of-date version of libcaffeine";
+		break;
+	case caff_AuthResultMfaOtpRequired:
+	case caff_AuthResultMfaOtpIncorrect: /* TODO make this different */
+		if (otpdialog.exec() == QDialog::Rejected)
+			return;
+		otp = onetimepassword->text().toStdString();
+		return;
+	case caff_AuthResultLegalAcceptanceRequired:
+		message = "Unauthorized";
+		error = "Legal acceptance required\n";
+		break;
+	case caff_AuthResultEmailVerificationRequired:
+		message = "Unauthorized";
+		error = "Email needs verification\n";
+		break;
+	case caff_AuthResultRequestFailed:
+	default:
+		message = "Failed";
+		error = "Sign-in request failed";
+		break;
+	}
+
+	QString title = QTStr("Auth.ChannelFailure.Title");
+	QString text = QTStr("Auth.ChannelFailure.Text")
+		.arg("Caffeine", message.c_str(), error.c_str());
+
+	QMessageBox::warning(OBSBasic::Get(), title, text);
+
+	blog(LOG_WARNING, "%s: %s: %s",
+		__FUNCTION__,
+		message.c_str(),
+		error.c_str());
+	return;
 }
 
 std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 {
-	std::string tmp = "";
-	std::string *token = &tmp;
-
 	QDialog dialog(parent);
 	QDialog *prompt = &dialog;
 	QFormLayout form(&dialog);
@@ -236,116 +323,18 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 	form.addRow(&buttonBox);
 	form.addRow(signup);
 	
-	auto tryLogin = [=](bool checked) {
-		std::string username = u->text().toStdString();
-		std::string password = p->text().toStdString();
-		std::string otp = "";
-
-		QDialog otpdialog(parent);
-		QString style = otpdialog.styleSheet();
-		style += caffeineStyle;
-		QFormLayout otpform(&otpdialog);
-		otpdialog.setWindowTitle("Caffeine Login (One Time Password)");
-		//otpform.addRow(new QLabel("Caffeine One Time Password"));
-
-		QLineEdit *onetimepassword = new QLineEdit(&otpdialog);
-		onetimepassword->setEchoMode(QLineEdit::Password);
-		onetimepassword->setPlaceholderText(QTStr("Password"));
-		//otpform.addRow(new QLabel(QTStr("Password")), onetimepassword);
-		otpform.addWidget(onetimepassword);
-
-		QPushButton *login = new QPushButton(QTStr("Login"));
-		QPushButton *logout = new QPushButton(QTStr("Logout"));
-		QPushButton *cancel = new QPushButton(QTStr("Cancel"));
-
-		QDialogButtonBox otpButtonBox(Qt::Horizontal, &otpdialog);
-
-		otpButtonBox.addButton(login, QDialogButtonBox::ButtonRole::AcceptRole);
-		otpButtonBox.addButton(cancel, QDialogButtonBox::ButtonRole::RejectRole);
-
-		QObject::connect(&otpButtonBox, SIGNAL(accepted()), &otpdialog, SLOT(accept()));
-		QObject::connect(&otpButtonBox, SIGNAL(rejected()), &otpdialog, SLOT(reject()));
-		otpform.addRow(&otpButtonBox);
-
-		std::string message = "";
-		std::string error = "";
-
-		if (username.empty() || password.empty()) {
-			message = "Missing Password or Username";
-			error = "A username and password are required!";
-			QString title = QTStr("Auth.ChannelFailure.Title");
-			QString text = QTStr("Auth.ChannelFailure.Text")
-				.arg("Caffeine", message.c_str(), error.c_str());
-
-			QMessageBox::warning(OBSBasic::Get(), title, text);
-			return;
-		}
-
-		int trycount = 0;
-retrylogin:
-		trycount++;
-		struct caffeine_auth_response *response =
-			caffeine_signin(username.c_str(), password.c_str(), otp.c_str());
-		if (!response) {
-			return;
-		} else if (response->next) {
-			if (strcmp(response->next, "mfa_otp_required") == 0) {
-				caffeine_free_auth_response(&response);
-				if (otpdialog.exec() == QDialog::Rejected)
-					return;
-				otp = onetimepassword->text().toStdString();
-				if (trycount < 3)
-					goto retrylogin;
-				return;
-			}
-
-			if (strcmp(response->next, "legal_acceptance_required") == 0) {
-				message = "Unauthorized";
-				error = "Legal acceptance required\n";
-			}
-			if (strcmp(response->next, "email_verification") == 0) {
-				message = "Unauthorized";
-				error += "Email needs verification\n";
-			}
-			caffeine_free_auth_response(&response);
-
-			QString title = QTStr("Auth.ChannelFailure.Title");
-			QString text = QTStr("Auth.ChannelFailure.Text")
-				.arg("Caffeine", message.c_str(), error.c_str());
-
-			QMessageBox::warning(OBSBasic::Get(), title, text);
-
-			blog(LOG_WARNING, "%s: %s: %s",
-				__FUNCTION__,
-				message.c_str(),
-				error.c_str());
-
-			if (trycount < 3)
-				goto retrylogin;
-			return;
-		} else if (!response->credentials) {
-			caffeine_free_auth_response(&response);
-			if (trycount < 3)
-				goto retrylogin;
-			return;
-		} else {
-			*token = caffeine_refresh_token(response->credentials);
-			caffeine_free_auth_response(&response);
-			prompt->accept();
-		}
-	};
-
-	QObject::connect(signin, &QPushButton::clicked, tryLogin);
 	QObject::connect(&buttonBox, SIGNAL(accepted()), &dialog, SLOT(accept()));
 	QObject::connect(&buttonBox, SIGNAL(rejected()), &dialog, SLOT(reject()));
+
+	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
+	QObject::connect(signin, &QPushButton::clicked,
+		[=](bool checked) { auth->TryAuth(checked, u, p, parent, caffeineStyle, prompt); });
 	
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
 
-	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
 	if (auth) {
-		auth->SetToken(token->c_str());
-		if (auth->GetChannelInfo(false))
+		if (auth->GetChannelInfo())
 			return auth;
 	}
 	return nullptr;

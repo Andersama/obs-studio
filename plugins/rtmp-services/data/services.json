@@ -460,7 +460,7 @@
                 "output": "caffeine_output",
                 "profile": "main",
                 "max video bitrate": 2000,
-                "max audio bitrate": 160
+                "max audio bitrate": 128
             }
         },
         {

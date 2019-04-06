@@ -1,6 +1,6 @@
 project(caffeine)
 
-find_package(Caffeine REQUIRED)
+find_package(Libcaffeine REQUIRED)
 find_package(Libcurl REQUIRED)
 find_package(Threads REQUIRED)
 find_package(FFmpeg REQUIRED
@@ -19,33 +19,24 @@ include_directories(
 	${FFMPEG_INCLUDE_DIRS}
 	${LIBCURL_INCLUDE_DIRS}
 	${OBS_JANSSON_INCLUDE_DIRS}
-	${CAFFEINE_INCLUDE_DIRS})
+	${LIBCAFFEINE_INCLUDE_DIR})
 
 set(caffeine_HEADERS
-	${CAFFEINE_HEADERS}
-#	caffeine-api.h
-#	caffeine-config.h
-#	caffeine-log.h
-#	caffeine-foreground-process.h
-	)
+	caffeine-foreground-process.h
+	caffeine-log.h
+	caffeine-settings.h)
 
 set(caffeine_SOURCES
-	${CAFFEINE_SOURCES}
-#	caffeine-api.c
-#	caffeine-foreground-process.c
-	)
-
-set(caffeine_PLUGINS
+	caffeine-foreground-process.c
 	caffeine-module.c
 	caffeine-output.c)
 
 add_library(caffeine MODULE
-	${caffeine_SOURCES}
-	${caffeine_HEADERS}
-	${caffeine_PLUGINS})
+    ${caffeine_HEADERS}
+	${caffeine_SOURCES})
 
 target_link_libraries(caffeine
-	${CAFFEINE_LIBRARIES}
+	${LIBCAFFEINE_LIBRARY}
 	${LIBCURL_LIBRARIES}
 	${FFMPEG_LIBRARIES}
 	${OBS_JANSSON_IMPORT}
