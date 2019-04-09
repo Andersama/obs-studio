@@ -20,7 +20,6 @@ class CaffeineAuth : public OAuthStreamKey {
 	std::string username;
 
 	void TryAuth(
-		bool checked,
 		QLineEdit * u,
 		QLineEdit * p,
 		QWidget * parent,

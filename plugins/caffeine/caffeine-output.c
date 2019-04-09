@@ -79,6 +79,7 @@ static int caffeine_to_obs_error(caff_Error error)
 {
 	switch (error)
 	{
+	case caff_ErrorOutOfCapacity:
 	case caff_ErrorSdpOffer:
 	case caff_ErrorSdpAnswer:
 	case caff_ErrorIceTrickle:

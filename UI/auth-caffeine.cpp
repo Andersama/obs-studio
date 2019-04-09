@@ -47,6 +47,7 @@ static Auth::Def caffeineDef = {
 
 static void caffeine_log(caff_LogLevel logLevel, char const * message)
 {
+	UNUSED_PARAMETER(logLevel);
 	blog(LOG_INFO, "[libcaffeine] %s", message);
 }
 
@@ -146,7 +147,6 @@ bool CaffeineAuth::RetryLogin()
 }
 
 void CaffeineAuth::TryAuth(
-	bool checked,
 	QLineEdit * u,
 	QLineEdit * p,
 	QWidget * parent,
@@ -328,7 +328,7 @@ std::shared_ptr<Auth> CaffeineAuth::Login(QWidget *parent)
 
 	std::shared_ptr<CaffeineAuth> auth = std::make_shared<CaffeineAuth>(caffeineDef);
 	QObject::connect(signin, &QPushButton::clicked,
-		[=](bool checked) { auth->TryAuth(checked, u, p, parent, caffeineStyle, prompt); });
+		[=](bool checked) { auth->TryAuth(u, p, parent, caffeineStyle, prompt); });
 	
 	if (dialog.exec() == QDialog::Rejected)
 		return nullptr;
