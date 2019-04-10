@@ -263,7 +263,7 @@ static bool caffeine_start(void *data)
 
 
 	caff_Error error =
-		caff_startStream(context->instance, context, title, rating,
+		caff_startBroadcast(context->instance, context, title, rating,
 			caffeine_stream_started, caffeine_stream_failed);
 	if (error) {
 		set_error(context->output, "%s",
@@ -573,7 +573,7 @@ static void caffeine_stop(void *data, uint64_t ts)
 	struct caffeine_output *context = data;
 	obs_output_t *output = context->output;
 
-	caff_endStream(context->instance);
+	caff_endBroadcast(context->instance);
 	caffeine_stream_ended(context);
 
 	obs_output_end_data_capture(output);
