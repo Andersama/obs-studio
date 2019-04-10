@@ -29,8 +29,6 @@ struct caffeine_output
 {
 	obs_output_t * output;
 	caff_InstanceHandle instance;
-	caff_StreamHandle stream;
-	pthread_mutex_t stream_mutex;
 	struct obs_video_info video_info;
 	uint64_t start_timestamp;
 	size_t audio_planes;
@@ -136,7 +134,6 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 	context->output = output;
 	context->instance = caff_initialize(caffeine_log, caff_LogLevelInfo);
 
-	pthread_mutex_init(&context->stream_mutex, NULL);
 	/*
 	pthread_mutex_init(&context->screenshot_mutex, NULL);
 	pthread_cond_init(&context->screenshot_cond, NULL);
@@ -265,18 +262,14 @@ static bool caffeine_start(void *data)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
 
 
-	caff_StreamHandle stream =
+	caff_Error error =
 		caff_startStream(context->instance, context, title, rating,
 			caffeine_stream_started, caffeine_stream_failed);
-	if (!stream) {
+	if (error) {
 		set_error(context->output, "%s",
 			obs_module_text("ErrorStartStream"));
 		return false;
 	}
-
-	pthread_mutex_lock(&context->stream_mutex);
-	context->stream = stream;
-	pthread_mutex_unlock(&context->stream_mutex);
 
 	return true;
 }
@@ -288,7 +281,7 @@ static void caffeine_stream_started(void *data)
 	obs_output_begin_data_capture(context->output, 0);
 }
 
-static void caffeine_stop_stream(struct caffeine_output *context);
+static void caffeine_stream_ended(struct caffeine_output *context);
 
 static void caffeine_stream_failed(void *data, caff_Error error)
 {
@@ -301,7 +294,7 @@ static void caffeine_stream_failed(void *data, caff_Error error)
 			caff_errorString(error));
 	}
 
-	caffeine_stop_stream(context);
+	caffeine_stream_ended(context);
 
 	obs_output_signal_stop(context->output, caffeine_to_obs_error(error));
 }
@@ -502,11 +495,8 @@ static void caffeine_raw_video(void *data, struct video_data *frame)
 	pthread_mutex_unlock(&context->screenshot_mutex);
 	*/
 
-	pthread_mutex_lock(&context->stream_mutex);
-	if (context->stream)
-		caff_sendVideo(context->stream, frame->data[0], total_bytes,
-			width, height, caff_VideoFormat);
-	pthread_mutex_unlock(&context->stream_mutex);
+	caff_sendVideo(context->instance, frame->data[0], total_bytes,
+		width, height, caff_VideoFormat);
 }
 
 /* This fixes an issue where unencoded outputs have video & audio out of sync
@@ -555,24 +545,15 @@ static void caffeine_raw_audio(void *data, struct audio_data *frames)
 	if (!prepare_audio(context, frames, &in))
 		return;
 
-	pthread_mutex_lock(&context->stream_mutex);
-	if (context->stream)
-		caff_sendAudio(context->stream, in.data[0], in.frames);
-	pthread_mutex_unlock(&context->stream_mutex);
+	caff_sendAudio(context->instance, in.data[0], in.frames);
 }
 
-static void caffeine_stop_stream(struct caffeine_output * context)
+static void caffeine_stream_ended(struct caffeine_output * context)
 {
 	trace();
-	pthread_mutex_lock(&context->stream_mutex);
 	/*
 	pthread_mutex_lock(&context->screenshot_mutex);
-	*/
 
-	if (context->stream)
-		caff_endStream(&context->stream);
-
-	/*
 	if (context->screenshot.data != NULL) {
 		av_free_packet(&context->screenshot);
 	}
@@ -581,7 +562,6 @@ static void caffeine_stop_stream(struct caffeine_output * context)
 
 	pthread_mutex_unlock(&context->screenshot_mutex);
 	*/
-	pthread_mutex_unlock(&context->stream_mutex);
 }
 
 static void caffeine_stop(void *data, uint64_t ts)
@@ -593,7 +573,8 @@ static void caffeine_stop(void *data, uint64_t ts)
 	struct caffeine_output *context = data;
 	obs_output_t *output = context->output;
 
-	caffeine_stop_stream(context);
+	caff_endStream(context->instance);
+	caffeine_stream_ended(context);
 
 	obs_output_end_data_capture(output);
 }
@@ -602,7 +583,6 @@ static void caffeine_destroy(void *data)
 {
 	trace();
 	struct caffeine_output *context = data;
-	pthread_mutex_destroy(&context->stream_mutex);
 	/*
 	pthread_mutex_destroy(&context->screenshot_mutex);
 	pthread_cond_destroy(&context->screenshot_cond);
@@ -616,9 +596,7 @@ static float caffeine_get_congestion(void * data)
 {
 	struct caffeine_output * context = data;
 
-	pthread_mutex_lock(&context->stream_mutex);
-	caff_ConnectionQuality quality = caff_getConnectionQuality(context->stream);
-	pthread_mutex_unlock(&context->stream_mutex);
+	caff_ConnectionQuality quality = caff_getConnectionQuality(context->instance);
 
 	switch (quality) {
 	case caff_ConnectionQualityGood:
