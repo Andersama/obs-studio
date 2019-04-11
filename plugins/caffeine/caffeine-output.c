@@ -73,19 +73,17 @@ static int caffeine_to_obs_log_level(caff_LogLevel level)
 	}
 }
 
-static int caffeine_to_obs_error(caff_Error error)
+static int caffeine_to_obs_error(caff_Result error)
 {
 	switch (error)
 	{
-	case caff_ErrorOutOfCapacity:
-	case caff_ErrorSdpOffer:
-	case caff_ErrorSdpAnswer:
-	case caff_ErrorIceTrickle:
-	case caff_ErrorBroadcastFailed:
+	case caff_ResultOutOfCapacity:
+	case caff_ResultRequestFailed:
+	case caff_ResultBroadcastFailed:
 		return OBS_OUTPUT_CONNECT_FAILED;
-	case caff_ErrorDisconnected:
+	case caff_ResultDisconnected:
 		return OBS_OUTPUT_DISCONNECTED;
-	case caff_ErrorTakeover:
+	case caff_ResultTakeover:
 	default:
 		return OBS_OUTPUT_ERROR;
 	}
@@ -143,7 +141,7 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 }
 
 static void caffeine_stream_started(void *data);
-static void caffeine_stream_failed(void *data, caff_Error error);
+static void caffeine_stream_failed(void *data, caff_Result error);
 
 static int const enforced_height = 720;
 static double const max_ratio = 3.0;
@@ -164,27 +162,27 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 	}
 
 	switch (caff_refreshAuth(context->instance, refresh_token)) {
-	case caff_AuthResultSuccess:
+	case caff_ResultSuccess:
 		return true;
-	case caff_AuthResultOldVersion:
+	case caff_ResultOldVersion:
 		set_error(output, "%s", obs_module_text("ErrorOldVersion"));
 		return false;
-	case caff_AuthResultInfoIncorrect:
+	case caff_ResultInfoIncorrect:
 		set_error(output, "%s", obs_module_text("SigninFailed"));
 		return false;
-	case caff_AuthResultLegalAcceptanceRequired:
+	case caff_ResultLegalAcceptanceRequired:
 		set_error(output, "%s", obs_module_text("TosAcceptanceRequired"));
 		return false;
-	case caff_AuthResultEmailVerificationRequired:
+	case caff_ResultEmailVerificationRequired:
 		set_error(output, "%s", obs_module_text("EmailVerificationRequired"));
 		return false;
-	case caff_AuthResultMfaOtpRequired:
+	case caff_ResultMfaOtpRequired:
 		set_error(output, "%s", obs_module_text("OtpRequired"));
 		return false;
-	case caff_AuthResultMfaOtpIncorrect:
+	case caff_ResultMfaOtpIncorrect:
 		set_error(output, "%s", obs_module_text("OtpIncorrect"));
 		return false;
-	case caff_AuthResultRequestFailed:
+	case caff_ResultRequestFailed:
 		set_error(output, "%s", obs_module_text("NoAuthResponse"));
 		return false;
 	default:
@@ -262,7 +260,7 @@ static bool caffeine_start(void *data)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
 
 
-	caff_Error error =
+	caff_Result error =
 		caff_startBroadcast(context->instance, context, title, rating,
 			caffeine_stream_started, caffeine_stream_failed);
 	if (error) {
@@ -283,7 +281,7 @@ static void caffeine_stream_started(void *data)
 
 static void caffeine_stream_ended(struct caffeine_output *context);
 
-static void caffeine_stream_failed(void *data, caff_Error error)
+static void caffeine_stream_failed(void *data, caff_Result error)
 {
 	struct caffeine_output *context = data;
 
@@ -291,7 +289,7 @@ static void caffeine_stream_failed(void *data, caff_Error error)
 		set_error(context->output, "%s: [%d] %s",
 			obs_module_text("ErrorStartStream"),
 			error,
-			caff_errorString(error));
+			caff_resultString(error));
 	}
 
 	caffeine_stream_ended(context);

@@ -72,7 +72,7 @@ try {
 
 	if (!caff_isSignedIn(instance)) {
 		auto result = caff_refreshAuth(instance, refresh_token.c_str());
-		if (result != caff_AuthResultSuccess) {
+		if (result != caff_ResultSuccess) {
 			throw ErrorInfo("Auth Failure", "Signin failed");
 		}
 	}
@@ -199,33 +199,33 @@ void CaffeineAuth::TryAuth(
 
 	auto response = caff_signIn(instance, username.c_str(), password.c_str(), otp.c_str());
 	switch (response) {
-	case caff_AuthResultSuccess:
+	case caff_ResultSuccess:
 		refresh_token = caff_getRefreshToken(instance);
 		prompt->accept();
 		return;
-	case caff_AuthResultInfoIncorrect:
+	case caff_ResultInfoIncorrect:
 		message = "Unauthorized";
 		error = "Incorrect login info";
 		break;
-	case caff_AuthResultOldVersion:
+	case caff_ResultOldVersion:
 		message = "Unauthorized";
 		error = "Out-of-date version of libcaffeine";
 		break;
-	case caff_AuthResultMfaOtpRequired:
-	case caff_AuthResultMfaOtpIncorrect: /* TODO make this different */
+	case caff_ResultMfaOtpRequired:
+	case caff_ResultMfaOtpIncorrect: /* TODO make this different */
 		if (otpdialog.exec() == QDialog::Rejected)
 			return;
 		otp = onetimepassword->text().toStdString();
 		return;
-	case caff_AuthResultLegalAcceptanceRequired:
+	case caff_ResultLegalAcceptanceRequired:
 		message = "Unauthorized";
 		error = "Legal acceptance required\n";
 		break;
-	case caff_AuthResultEmailVerificationRequired:
+	case caff_ResultEmailVerificationRequired:
 		message = "Unauthorized";
 		error = "Email needs verification\n";
 		break;
-	case caff_AuthResultRequestFailed:
+	case caff_ResultRequestFailed:
 	default:
 		message = "Failed";
 		error = "Sign-in request failed";
