@@ -45,22 +45,16 @@ static Auth::Def caffeineDef = {
 
 /* ------------------------------------------------------------------------- */
 
-static void caffeine_log(caff_LogLevel logLevel, char const * message)
-{
-	UNUSED_PARAMETER(logLevel);
-	blog(LOG_INFO, "[libcaffeine] %s", message);
-}
-
 CaffeineAuth::CaffeineAuth(const Def &d)
 	: OAuthStreamKey(d)
 {
 	UNUSED_PARAMETER(d);
-	instance = caff_initialize(caffeine_log, caff_LogLevelInfo);
+	instance = caff_createInstance();
 }
 
 CaffeineAuth::~CaffeineAuth()
 {
-	caff_deinitialize(&instance);
+	caff_freeInstance(&instance);
 }
 
 bool CaffeineAuth::GetChannelInfo()

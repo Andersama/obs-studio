@@ -42,30 +42,6 @@ static const char *caffeine_get_name(void *data)
 	return obs_module_text("CaffeineOutput");
 }
 
-/* Converts libcaffeine log levels to OBS levels. NONE or unrecognized values
- * return 0 to indicate the message shouldn't be logged
- *
- * Note: webrtc uses INFO for debugging messages, not meant to be user-facing,
- * so this will never return LOG_INFO
- */
-static int caffeine_to_obs_log_level(caff_LogLevel level)
-{
-	switch (level)
-	{
-	case caff_LogLevelSensitive:
-	case caff_LogLevelVerbose:
-	case caff_LogLevelInfo:
-		return LOG_DEBUG;
-	case caff_LogLevelWarning:
-		return LOG_WARNING;
-	case caff_LogLevelError:
-		return LOG_ERROR;
-	case caff_LogLevelNone:
-	default:
-		return 0;
-	}
-}
-
 static int caffeine_to_obs_error(caff_Result error)
 {
 	switch (error)
@@ -107,14 +83,6 @@ caff_VideoFormat obs_to_caffeine_format(enum video_format format)
 	}
 }
 
-/* TODO: figure out why libcaffeine isn't calling this */
-static void caffeine_log(caff_LogLevel level, char const * message)
-{
-	int log_level = caffeine_to_obs_log_level(level);
-	if (log_level)
-		blog(log_level, "[libcaffeine] %s", message);
-}
-
 static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 {
 	trace();
@@ -123,7 +91,9 @@ static void *caffeine_create(obs_data_t *settings, obs_output_t *output)
 	struct caffeine_output *context =
 		bzalloc(sizeof(struct caffeine_output));
 	context->output = output;
-	context->instance = caff_initialize(caffeine_log, caff_LogLevelInfo);
+
+	/* TODO: can we get this from the CaffeineAuth object somehow? */
+	context->instance = caff_createInstance();
 
 	return context;
 }
@@ -401,7 +371,7 @@ static void caffeine_destroy(void *data)
 {
 	trace();
 	struct caffeine_output *context = data;
-	caff_deinitialize(&context->instance);
+	caff_freeInstance(&context->instance);
 
 	bfree(data);
 }
