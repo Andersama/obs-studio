@@ -219,7 +219,7 @@ void CaffeineAuth::TryAuth(
 		message = "Unauthorized";
 		error = "Email needs verification\n";
 		break;
-	case caff_ResultRequestFailed:
+	case caff_ResultFailure:
 	default:
 		message = "Failed";
 		error = "Sign-in request failed";

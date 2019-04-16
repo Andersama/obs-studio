@@ -47,7 +47,7 @@ static int caffeine_to_obs_error(caff_Result error)
 	switch (error)
 	{
 	case caff_ResultOutOfCapacity:
-	case caff_ResultRequestFailed:
+	case caff_ResultFailure:
 	case caff_ResultBroadcastFailed:
 		return OBS_OUTPUT_CONNECT_FAILED;
 	case caff_ResultDisconnected:
@@ -140,7 +140,7 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 	case caff_ResultMfaOtpIncorrect:
 		set_error(output, "%s", obs_module_text("OtpIncorrect"));
 		return false;
-	case caff_ResultRequestFailed:
+	case caff_ResultFailure:
 		set_error(output, "%s", obs_module_text("NoAuthResponse"));
 		return false;
 	default:
