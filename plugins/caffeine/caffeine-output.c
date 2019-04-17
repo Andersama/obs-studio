@@ -40,6 +40,9 @@ struct caffeine_output
 	char * game_id;
 };
 
+/* TODO: backend fix for switching between game and no-game */
+#define OBS_GAME_ID "79"
+
 static const char *caffeine_get_name(void *data)
 {
 	UNUSED_PARAMETER(data);
@@ -134,10 +137,12 @@ static bool caffeine_authenticate(struct caffeine_output *context)
 		set_error(output, "%s", obs_module_text("SigninFailed"));
 		return false;
 	case caff_ResultLegalAcceptanceRequired:
-		set_error(output, "%s", obs_module_text("TosAcceptanceRequired"));
+		set_error(output, "%s",
+			obs_module_text("TosAcceptanceRequired"));
 		return false;
 	case caff_ResultEmailVerificationRequired:
-		set_error(output, "%s", obs_module_text("EmailVerificationRequired"));
+		set_error(output, "%s",
+			obs_module_text("EmailVerificationRequired"));
 		return false;
 	case caff_ResultMfaOtpRequired:
 		set_error(output, "%s", obs_module_text("OtpRequired"));
@@ -167,7 +172,8 @@ static bool caffeine_start(void *data)
 	}
 
 	if (context->video_info.output_height != enforced_height)
-		log_warn("For best video quality and reduced CPU usage, set output resolution to 720p");
+		log_warn("For best video quality and reduced CPU usage,"
+			" set output resolution to 720p");
 
 	double ratio = (double)context->video_info.output_width /
 		context->video_info.output_height;
@@ -183,7 +189,8 @@ static bool caffeine_start(void *data)
 	if (format == caff_VideoFormatUnknown) {
 		set_error(context->output, "%s %s",
 			obs_module_text("ErrorVideoFormat"),
-			get_video_format_name(context->video_info.output_format));
+			get_video_format_name(
+				context->video_info.output_format));
 		return false;
 	}
 
@@ -214,7 +221,8 @@ static bool caffeine_start(void *data)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
 
 	caff_Result error =
-		caff_startBroadcast(context->instance, context, title, rating,
+		caff_startBroadcast(context->instance, context,
+			title, rating, OBS_GAME_ID, /* TODO: fix backend switching between game & no-game */
 			caffeine_stream_started, caffeine_stream_failed);
 	if (error) {
 		set_error(context->output, "%s",
@@ -225,13 +233,15 @@ static bool caffeine_start(void *data)
 	return true;
 }
 
-static void enumerate_games(void *data, char const *processName, char const *game_id, char const *gameName)
+static void enumerate_games(void *data, char const *process_name,
+	char const *game_id, char const *game_name)
 {
 	struct caffeine_output *context = data;
-	if (strcmp(processName, context->foreground_process) == 0) {
-		log_debug("Detected game [%s]: %s", game_id, gameName);
+	if (strcmp(process_name, context->foreground_process) == 0) {
+		log_debug("Detected game [%s]: %s", game_id, game_name);
 		bfree(context->game_id);
 		context->game_id = bstrdup(game_id);
+
 	}
 }
 
@@ -251,17 +261,19 @@ static void * game_detection_thread(void *data)
 			continue;
 
 		cur_interval = 0;
-		context->game_id = NULL;
 		context->foreground_process = get_foreground_process_name();
 		if (context->foreground_process) {
-			caff_enumerateGames(context->instance, context, enumerate_games);
+			caff_enumerateGames(context->instance, context,
+						enumerate_games);
 			bfree(context->foreground_process);
 			context->foreground_process = NULL;
 		}
-		if (context->game_id) {
-			caff_setGameId(context->instance, context->game_id);
-			bfree(context->game_id);
-		}
+		/* TODO: fix backend switching between game & no-game */
+		caff_setGameId(
+			context->instance,
+			context->game_id ? context->game_id : OBS_GAME_ID);
+		bfree(context->game_id);
+		context->game_id = NULL;
 	}
 	return NULL;
 }
