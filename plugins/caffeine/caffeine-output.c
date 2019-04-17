@@ -33,6 +33,11 @@ struct caffeine_output
 	uint64_t start_timestamp;
 	size_t audio_planes;
 	size_t audio_size;
+
+	volatile bool is_online;
+	pthread_t game_detection_thread;
+	char * foreground_process;
+	char * game_id;
 };
 
 static const char *caffeine_get_name(void *data)
@@ -208,7 +213,6 @@ static bool caffeine_start(void *data)
 	caff_Rating rating = (caff_Rating)
 		obs_data_get_int(settings, BROADCAST_RATING_KEY);
 
-
 	caff_Result error =
 		caff_startBroadcast(context->instance, context, title, rating,
 			caffeine_stream_started, caffeine_stream_failed);
@@ -221,10 +225,53 @@ static bool caffeine_start(void *data)
 	return true;
 }
 
+static void enumerate_games(void *data, char const *processName, char const *game_id, char const *gameName)
+{
+	struct caffeine_output *context = data;
+	if (strcmp(processName, context->foreground_process) == 0) {
+		log_debug("Detected game [%s]: %s", game_id, gameName);
+		bfree(context->game_id);
+		context->game_id = bstrdup(game_id);
+	}
+}
+
+static void * game_detection_thread(void *data)
+{
+	trace();
+	struct caffeine_output *context = data;
+	uint32_t const stop_interval = 100/*ms*/;
+	uint32_t const check_interval = 5000/*ms*/;
+
+	uint32_t cur_interval = 0;
+	while (context->is_online) {
+		os_sleep_ms(stop_interval);
+		cur_interval += stop_interval;
+
+		if (cur_interval < check_interval)
+			continue;
+
+		cur_interval = 0;
+		context->game_id = NULL;
+		context->foreground_process = get_foreground_process_name();
+		if (context->foreground_process) {
+			caff_enumerateGames(context->instance, context, enumerate_games);
+			bfree(context->foreground_process);
+			context->foreground_process = NULL;
+		}
+		if (context->game_id) {
+			caff_setGameId(context->instance, context->game_id);
+			bfree(context->game_id);
+		}
+	}
+	return NULL;
+}
+
 static void caffeine_stream_started(void *data)
 {
 	trace();
 	struct caffeine_output *context = data;
+	context->is_online = true;
+	pthread_create(&context->game_detection_thread, NULL, game_detection_thread, context);
 	obs_output_begin_data_capture(context->output, 0);
 }
 
@@ -239,50 +286,13 @@ static void caffeine_stream_failed(void *data, caff_Result error)
 			caff_resultString(error));
 	}
 
-	obs_output_signal_stop(context->output, caffeine_to_obs_error(error));
-}
-
-/* TODO refactor
-static char const *get_game_id(struct caffeine_games *games,
-		char *const process_name)
-{
-	if (games && process_name) {
-		for (size_t game_index = 0; game_index < games->num_games;
-			++game_index) {
-
-			struct caffeine_game_info *info =
-				games->game_infos[game_index];
-			if (!info)
-				continue;
-
-			for (size_t pname_index = 0;
-				pname_index < info->num_process_names;
-				++pname_index) {
-
-				char const *pname =
-					info->process_names[pname_index];
-				if (!pname)
-			    		continue;
-				if (strcmp(process_name, pname) == 0)
-			    		return info->id;
-			}
-		}
+	if (context->is_online) {
+		context->is_online = false;
+		pthread_join(context->game_detection_thread, NULL);
 	}
 
-	return NULL;
+	obs_output_signal_stop(context->output, caffeine_to_obs_error(error));
 }
-
-// Falls back to obs_id if no foreground game detected
-static char const *get_running_game_id(struct caffeine_games *games,
-		const char *fallback_id)
-{
-	char *foreground_process = get_foreground_process_name();
-	char const *id = get_game_id(games, foreground_process);
-	bfree(foreground_process);
-	return id ? id : fallback_id;
-}
-
-*/
 
 static void caffeine_raw_video(void *data, struct video_data *frame)
 {
@@ -361,6 +371,11 @@ static void caffeine_stop(void *data, uint64_t ts)
 
 	struct caffeine_output *context = data;
 	obs_output_t *output = context->output;
+
+	if (context->is_online) {
+		context->is_online = false;
+		pthread_join(context->game_detection_thread, NULL);
+	}
 
 	caff_endBroadcast(context->instance);
 
